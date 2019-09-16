@@ -1,0 +1,406 @@
+; EUF: Equality and Uninterpreted Functions
+; 
+; term := <function fsymbol ((term) list)> <constant csymbol>
+; equation := <eq term term> <neq term term>
+
+; Constraints (multiset equation)
+; Input: Constraints
+; Ouput: SAT or UNSAT 
+
+(define $term
+  (algebraic-data-matcher
+    {<function string (list term)> <constant string>}))
+(define $equation
+  (algebraic-data-matcher
+    {<eq term term> <neq term term>}))
+(define $equation-terms
+  (matcher 
+    {[<eq $ $> [term term]
+          {[<Eq $l $r> {[l r]}]
+          [_ {}]}]
+    [<neq $ $> [term term]
+          {[<Neq $l $r> {[l r]}]
+          [_ {}]}]
+    [<both $ $> [term term] 
+           {[<Eq $l $r2> {[l r2]}]
+           [<Neq $l $r2> {[l r2]}]
+           }]
+    }
+    ))
+(define $show-term
+  (lambda [$t] (
+                match t term 
+                {
+                [<function $s $args> 
+                           (S.concat {s "(" @(map show-term args) "), "})]
+                [<constant $s> 
+                           (S.concat {s","})]
+                }
+                )
+    ))
+
+(define $show-eq
+  (lambda [$t] (
+                match t equation
+                {
+                [<eq $l $r> 
+                     (S.concat {(show-term l) " = " (show-term r)})]
+                [<neq $l $r> 
+                      (S.concat {(show-term l) " != " (show-term r)})]
+                }
+                )
+    ))
+(define $show-congruence
+  (lambda [$x]
+    (map 
+      (lambda [$t] 
+        (S.concat {"{ " @(
+                          map show-term t
+                          ) " }"}) 
+        )
+      x
+      )))
+(S.concat {"a" "b"})
+
+; ex1
+(define $c1 <Constant "a">)
+(define $c2 <Constant "b">)
+(define $c3 <Constant "c">)
+"contant"
+c1
+c2
+c3
+(define $f1 <Function "f" {c1}>)
+(define $f2 <Function "g" {c1 c2}>)
+"function"
+f1
+f2
+(define $unary-rec 
+  (lambda [$symbol $c $n]
+    (if (eq? n 0) <Constant c> <Function symbol {(unary-rec symbol c (- n 1))}>)))
+
+(define $f5 (unary-rec "f" "a" 5))
+(define $f3 (unary-rec "f" "a" 3))
+
+(define $test1 {<Eq (unary-rec "f" "a" 5) <Constant "a">> <Eq (unary-rec "f" "a" 3) <Constant "a">> <Neq (unary-rec "f" "a" 1) <Constant "a">>})
+(define $test2 {<Neq <Constant "x"> <Constant "y">> <Eq (unary-rec "f" "x" 1) (unary-rec "f" "y" 1)>})
+(define $test3 {<Eq <Function "f" {<Constant "a"> <Constant "b">}> <Constant "a">>
+  <Eq <Function "f" {<Function "f" {<Constant "a"> <Constant "b">}> <Constant "b">}> <Constant "a">>
+  <Neq <Constant "a"> <Constant "b">>
+  })
+(define $test4 {<Eq <Function "cons" {<Constant "u"> <Constant "v">}> <Constant "x">> <Neq <Function "cons" {<Function "car"{<Constant "x">}> <Function "cdr"{<Constant "x">}>}> <Constant "x">>})
+
+(define $test5 {<Neq <Function "cons" {<Function "car"{<Constant "x">}> <Function "cdr"{<Constant "x">}>}> <Constant "x">>})
+
+(define $test6 {<Eq <Function "cons"{<Constant "u"> <Constant "v">}> <Function "cons" {<Constant "x"> <Constant "y">}>> <Neq <Constant "x"> <Constant "u">>})
+
+
+
+
+test1
+(define $filter-eq
+  (lambda [$constrains]
+    (match-all constrains (multiset equation) 
+      {
+      [<cons <eq $l $r> _> [l r]]
+      }
+      )))
+(filter-eq test1)
+(define $filter-neq
+  (lambda [$constrains]
+    (match-all constrains (multiset equation) 
+      {
+      [<cons <neq $l $r> _> [l r]]
+      }
+      )))
+(define $subterms
+  (lambda [$t] (
+                match t term
+                {
+                [ <function $symbol $args>
+                            { t@(concat (map subterms args)) 
+                            }]
+                [ <constant $symbol>
+                            {t}]
+                }
+                )))
+
+(define $subterms-only
+  (lambda [$t] (
+                match t term
+                {
+                [ <function $symbol $args>
+                            { @(concat (map subterms args)) 
+                            }]
+                [ <constant $symbol>
+                            {}]
+                }
+                )))
+
+(define $subterms-only-one
+  (lambda [$t] (
+                match t term
+                {
+                [ <function $symbol $args>
+                            args
+                            ]
+                [ <constant $symbol>
+                            {}]
+                }
+                )))
+
+
+(subterms
+  (unary-rec "f" "a" 5)
+  )
+(define $equation-subterm
+  (lambda [$l]
+    (
+     match l equation-terms
+     {
+     [<both $l $r> {@(subterms l) @(subterms r)}]
+     }
+     ))
+  )
+"hoge"
+(map show-term (equation-subterm <Neq f1 f2>))
+(map show-eq test1)
+
+
+(define $add-carcdr-to-cons
+  (lambda [$terms]
+  (concat (map
+  (lambda [$t]
+  (
+  match t term
+  {
+    [<function ,"cons" {<cons $x <cons $y  _>>}> {t <Function "car" {t}> <Function "cdr" {t}>} ]
+    [_ {t}]
+    }
+  )
+  )
+  terms))))
+
+(define $subterms-in-constrains
+  (lambda [$constrains] (unique (add-carcdr-to-cons (unique (concat (map equation-subterm
+                                             constrains
+                                             )))))))
+
+(define $congruence-init
+  (lambda [$s]
+    (map (lambda [$a] {a}) s)
+    )
+  )
+
+(define $congruence-init-list
+  (lambda [$s]
+    (map (lambda [$a] 
+    (
+    match a (debug term)
+    {
+      [<function ,"car" <cons <function ,"cons" <cons $x  _>> _>> {a x}]
+      [<function ,"cdr" <cons <function ,"cons" <cons $x <cons $y _>>> _>> {a y}]
+      [_ {a}]
+    }
+    )
+    ) s)
+    )
+  )
+
+
+(define $congruence-get
+  (lambda [$congruence $l]
+    (
+     match congruence (multiset (multiset integer))
+     {
+     [<join _ <cons (& ?(lambda [$s] (member? l s))  $left-group) _>> left-group] 
+     }))
+  )
+
+(define $congruence-get-merge
+  (lambda [$congruence $ls]
+    (unique (concat (map (lambda [$s]( congruence-get  congruence s)) ls)))
+    )
+  )
+
+(define $congruence-remove
+  (lambda [$congruence $ls]
+    (match-all congruence (multiset (multiset something))
+      [<cons (and !<cons ?(member? $ ls)  _>  $c) _> c])))
+
+(define $congruence-merge
+  (lambda [$congruence $ls]
+    {@(congruence-remove congruence ls) (congruence-get-merge congruence ls)}))
+
+(congruence-get {{1 2 3} {4 5}} 1)
+(congruence-get-merge {{1 2 3} {4 5}} {1 4})
+
+(congruence-remove {{1 2 3} {4 5}} {1})
+(congruence-merge {{1 2 3} {4 5} {6 7}} { 1 4})
+(define $cinit (congruence-init (subterms-in-constrains test1)))
+(congruence-merge cinit {f5 f3})
+(define $term-matcher
+  (matcher 
+    {
+    [<subterm $> [term something]
+              {[$s (subterms-only s)]}]
+    [$ something
+       {[$tgt {tgt}]}]}
+    ))
+; (match-all f3 match-to-subterms
+;   [<subterm $a> a])
+
+(define $congruence-1st-subterm 
+  ; lの同値類が変更されたとき影響が出る(lをsubtermとしてもつ)termを列挙
+  (lambda [$subterms-dict $ls]
+    (match-all subterms-dict (multiset [something (multiset something)])
+      [
+       <cons [$s <cons ?(lambda [$l] (member? l ls)) _>] _> s
+       ]
+      )))
+
+(define $dict-init
+  (lambda [$s] (map (lambda [$x] [x (subterms-only-one x)] ) s)))
+
+;(congruence-influence test1-dict f1)
+(define $congruent 
+  (lambda [$congruence $t1 $t2]
+    ( match [t1 t2] [term term]
+            {
+            [[<function $s $a1> <function ,s $a2>] 
+             (all (lambda [$x] x) (map2 (lambda [$x $y] (eq? (congruence-get congruence x) (congruence-get congruence y))) a1 a2))]
+            [[_ _] #f]
+            }
+            )))
+(define $proj-congruence fst)
+(define $proj-dict snd)
+(define $update-congruence 
+  (lambda [$a $b] 
+    [b (snd a)]))
+(define $check-equality
+  (lambda [$congruence $t1 $t2] 
+    (let {[[$n1] (congruence-get congruence t1)] 
+      [[$n2] (congruence-get congruence t2)]}
+      (eq? n1 n2))
+    )
+  )
+(define $terms (multiset term))
+(define $add-congruent
+  (lambda [$terms]
+  (concat (map
+  (lambda [$t]
+  (
+  match t term
+  {
+    [<function ,"cons" {<cons $x <cons $y  _>>}> {(lambda [$state] (merge state <Function "car" {t}> x)) (lambda [$state] (merge state <Function "cdr" {t}> y))}]
+    [_ {}]
+    }
+  )
+  )
+  terms))))
+(define $init-list
+  (lambda [$state $subterms]
+    (debug (foldl 
+       (lambda [$acc $f] (f acc))
+       state
+       (debug (add-congruent subterms))
+    ))))
+    
+
+(define $proj-cons
+  (lambda [$terms]
+  (concat (map
+  (lambda [$t]
+  (
+  match t term
+  {
+    [<function ,"cons" {<cons $x <cons $y  _>>}> {[x y]}]
+    [_ {}]
+    }
+  )
+  )
+  terms))))
+
+(define $proj-cdr
+  (lambda [$terms]
+  (concat (map
+  (lambda [$t]
+  (
+  match t term
+  {
+    [<function ,"cons" {<cons $x <cons $y  _>>}> {[x y]}]
+    [_ {}]
+    }
+  )
+  )
+  terms))))
+
+
+(define $merge 
+ (lambda [$state $t1 $t2]
+  (let {[[$congruence] (proj-congruence state)]} 
+   (match [(congruence-get congruence t1) (congruence-get congruence t2)] [terms terms]
+    {[[$n1 ,n1] state] 
+     [[$n1 $n2] 
+     (let 
+      {[[$p1] (congruence-1st-subterm (proj-dict state) n1)] 
+       [[$p2] (congruence-1st-subterm (proj-dict state) n2)]
+       }
+      (foldl 
+       (lambda [$acc $f] (f acc)) 
+       (update-congruence state (congruence-merge congruence {t1 t2}))
+       (match-all [p1 p2] [terms terms]
+         [[<cons $t1' _> <cons $t2' _>]
+          (lambda [$state'] (if (congruent (proj-congruence state') t1' t2') (merge state' t1' t2') state'))])))]}))))
+
+(define $id (lambda [$x] x))
+(define $gen 
+  (lambda [$constrains] 
+    [(congruence-init (subterms-in-constrains constrains)) 
+     (dict-init (subterms-in-constrains constrains))]))
+
+(define $gen-list
+  (lambda [$constrains] 
+    (init-list [(congruence-init (subterms-in-constrains constrains)) 
+     (dict-init (subterms-in-constrains constrains))] 
+     (subterms-in-constrains constrains)
+     )))
+
+
+(define $state1 (gen test1))
+(define $state2 (gen test2))
+(define $solve 
+  (lambda [$constraints]
+    (letrec {[[$init] (gen constraints)] [[$eqs] (filter-eq constraints)] [[$neqs] (filter-neq constraints)] [[$last] (foldl (lambda [$acc $x] (merge acc (fst x) (snd x))) init eqs)]}
+      [(all (lambda [$l] (not (check-equality (proj-congruence last) (fst l) (snd l)))) neqs) (show-congruence (proj-congruence last))]
+      )))
+(define $solve-list
+  (lambda [$constraints]
+    (letrec {[[$init] (debug (gen-list constraints))] [[$eqs] (filter-eq constraints)] [[$neqs] (filter-neq constraints)] [[$last] (foldl (lambda [$acc $x] (merge acc (fst x) (snd x))) init eqs)]}
+      [(all (lambda [$l] (not (check-equality (proj-congruence last) (fst l) (snd l)))) neqs) (show-congruence (proj-congruence last))]
+      )))
+
+
+(define $m1 (merge state1 c1 f3))
+; (show-congruence (fst m1))
+; (show-congruence (fst (merge m1 c1 f5)))
+(define $m2 state2)
+(define $show-constraints
+  (lambda [$f] 
+    (
+     map show-eq f
+     )))
+; m2
+"solve"
+(show-constraints test1)
+(solve test1)
+(show-constraints test2)
+(solve test2)
+(show-constraints test3)
+(solve test3)
+(show-constraints test4)
+(solve-list test4)
+(show-constraints test5)
+(solve-list test5)
+(show-constraints test6)
+(solve-list test6)
