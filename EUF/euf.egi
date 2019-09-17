@@ -32,9 +32,9 @@
                 match t term 
                 {
                 [<function $s $args> 
-                           (S.concat {s "(" @(map show-term args) "), "})]
+                           (S.concat {s "(" (S.intercalate "," (map show-term args)) ")"})]
                 [<constant $s> 
-                           (S.concat {s","})]
+                           s]
                 }
                 )
     ))
@@ -54,9 +54,7 @@
   (lambda [$x]
     (map 
       (lambda [$t] 
-        (S.concat {"{ " @(
-                          map show-term t
-                          ) " }"}) 
+        (S.concat {"{ " (S.intercalate ", " (map show-term t)) " }"})
         )
       x
       )))
@@ -284,9 +282,7 @@ test1
 (define $m2 state2)
 (define $show-constraints
   (lambda [$f] 
-    (
-     map show-eq f
-     )))
+    (map show-eq f)))
 ; m2
 "solve"
 (show-constraints test1)
