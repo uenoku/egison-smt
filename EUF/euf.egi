@@ -111,7 +111,7 @@ test1
                 match t term
                 {
                 [ <function $symbol $args>
-                            { t@(concat (map subterms args)) 
+                            {t @(concat (map subterms args))
                             }]
                 [ <constant $symbol>
                             {t}]
@@ -123,8 +123,8 @@ test1
                 match t term
                 {
                 [ <function $symbol $args>
-                            { @(concat (map subterms args)) 
-                            }]
+                            (concat (map subterms args))
+                            ]
                 [ <constant $symbol>
                             {}]
                 }
@@ -176,13 +176,13 @@ test1
     (
      match congruence (multiset (multiset integer))
      {
-     [<cons (& ?(member? l $)  $left-group) _> left-group] 
+     [<cons (& <cons ,l _> $left-group) _> left-group]
      }))
   )
 
 (define $congruence-get-merge
   (lambda [$congruence $ls]
-    (unique (concat (map (lambda [$s]( congruence-get  congruence s)) ls)))
+    (unique (concat (map (congruence-get congruence $) ls)))
     )
   )
 
@@ -218,7 +218,7 @@ test1
   (lambda [$subterms-dict $ls]
     (match-all subterms-dict (multiset [something (multiset something)])
       [
-       <cons [$s <cons ?(lambda [$l] (member? l ls)) _>] _> s
+       <cons [$s <cons ?(member? $ ls) _>] _> s
        ]
       )))
 
