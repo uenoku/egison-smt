@@ -213,7 +213,7 @@ test1
     (
      match congruence (multiset (multiset integer))
      {
-     [<join _ <cons (& ?(lambda [$s] (member? l s))  $left-group) _>> left-group] 
+     [<cons (& ?(member? l $)  $left-group) _> left-group] 
      }))
   )
 
